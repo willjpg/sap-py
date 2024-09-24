@@ -1,0 +1,88 @@
+import win32com.client
+import subprocess
+import time
+import psutil  # Biblioteca para verificar se o processo está rodando
+
+def is_saplogon_running():
+    """Verifica se o processo saplogon.exe está em execução."""
+    for process in psutil.process_iter(['name']):
+        if process.info['name'] == 'saplogon.exe':
+            return True
+    return False
+
+def start_saplogon():
+    """Inicia o SAP Logon se não estiver em execução."""
+    try:
+        subprocess.Popen([r"C:\Program Files (x86)\SAP\FrontEnd\SapGui\saplogon.exe"])  # Caminho padrão do SAP Logon
+        time.sleep(5)  # Espera alguns segundos para o SAP Logon iniciar
+        print("SAP Logon iniciado com sucesso.")
+    except Exception as e:
+        print(f"Erro ao iniciar SAP Logon: {e}")
+
+def is_logged_in():
+    """Verifica se já existe uma sessão ativa no SAP GUI."""
+    try:
+        # Conectar ao SAP GUI
+        SapGuiAuto = win32com.client.GetObject("SAPGUI")
+        application = SapGuiAuto.GetScriptingEngine
+        
+        # Verifica se há uma conexão ativa
+        if application.Children.Count > 0:
+            connection = application.Children(0)
+            if connection.Children.Count > 0:
+                session = connection.Children(0)
+                if session.Info.Transaction == "":
+                    return True  # Está logado, mas não em nenhuma transação específica
+                else:
+                    return True  # Está logado e em alguma transação
+        return False  # Não há sessão ativa
+    except Exception as e:
+        print(f"Erro ao verificar login: {e}")
+        return False
+
+def login_to_sap(server_name, client, username, password, language):
+    """Realiza o login no SAP GUI."""
+    try:
+        # Conectar ao SAP GUI
+        SapGuiAuto = win32com.client.GetObject("SAPGUI")
+        application = SapGuiAuto.GetScriptingEngine
+        
+        # Abre a conexão com o servidor SAP
+        connection = application.OpenConnection(server_name, True)
+        session = connection.Children(0)
+        
+        # Preencher as credenciais
+        session.findById("wnd[0]/usr/txtRSYST-MANDT").text = client  # Cliente (mandante)
+        session.findById("wnd[0]/usr/txtRSYST-BNAME").text = username  # Nome de usuário
+        session.findById("wnd[0]/usr/pwdRSYST-BCODE").text = password  # Senha
+        session.findById("wnd[0]/usr/txtRSYST-LANGU").text = language  # Idioma
+        
+        # Simula o pressionamento de Enter para fazer login
+        session.findById("wnd[0]").sendVKey(0)  # VKey 0 simula o Enter
+        time.sleep(2)  # Espera a conexão ser estabelecida
+        
+        print("Login realizado com sucesso.")
+    except Exception as e:
+        print(f"Erro ao fazer login: {e}")
+
+# Parâmetros de conexão
+server_name = "Nome do Servidor"
+client = "100"
+username = "seu_usuario"
+password = "sua_senha"
+language = "EN"
+
+# Verifica se o SAP Logon está rodando
+if not is_saplogon_running():
+    print("SAP Logon não está aberto. Iniciando...")
+    start_saplogon()
+else:
+    print("SAP Logon já está rodando.")
+
+# Verifica se já está logado no SAP
+if is_logged_in():
+    print("Já está logado no SAP. Focando na janela existente.")
+else:
+    print("Não está logado. Pedindo credenciais...")
+    # Faz o login
+    login_to_sap(server_name, client, username, password, language)
